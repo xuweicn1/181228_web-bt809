@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>主机1</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    {% block css %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/jquery-3.3.1.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    {% block scrip %}{% endblock %}
+</head>
+
+<body>
+    {% include 'includes/_navbar.html'%}
+    {% include 'includes/_messages.html'%}
+    <!-- { padding-top:170px; } -->
+    {% block body%}{% endblock%}
+    {% include 'includes/_footer.html' %}
+</body>
+
+</html>
