@@ -84,10 +84,11 @@ def background_thread():
     while True:
         socketio.sleep(10)
         sav()
-        r = getBT809data('8181521B')
+        r = list(getBT809data('8181521B'))
+        r[0],r[1] = r[0]/10,r[1]/10
         t = time.strftime('%H:%M:%S', time.localtime())  # 获取系统时间
         socketio.emit('server_response', {
-                      'data': [t] + [r[0]/10], 'count': count}, namespace='/test')
+                      'data': [t] + r, 'count': count}, namespace='/test')
 
 
 @app.route("/")
