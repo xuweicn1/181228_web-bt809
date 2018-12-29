@@ -2,7 +2,7 @@ import psutil
 import time
 import glob
 import struct
-import serial
+import serial 
 import sqlite3 as lite
 from threading import Lock
 from flask import Flask, render_template, session, request
@@ -29,11 +29,12 @@ pins = {
    18 : {'name' : '信道3', 'state' : GPIO.LOW},
    23 : {'name' : '信道4', 'state' : GPIO.LOW}
    }
-
-for pin in pins:
+   
+def pin_initial():
     '''设置每个引脚为输出,置低电平'''
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.LOW)
+    for pin in pins:
+        GPIO.setup(pin, GPIO.OUT)
+        GPIO.output(pin, GPIO.LOW)
 
 def getBT809data(x):
     """从809取数 """
@@ -121,6 +122,10 @@ def table():
       cur.execute('''select * from temp''')
       data = cur.fetchall ()
    return render_template("table.html",data=data)
+
+   
+pin_initial()
+
 
 @app.route("/vents")
 def vents():
