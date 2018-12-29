@@ -47,21 +47,28 @@ def getBT809data(x):
         return r
 
 
-def logTemp(t1, t2, t3, t4):
-    """数据入库"""
+def logTemp(n, p, t1, t2, t3, t4):
+    """数据入库格式：时间、运行号段、设定值、通道1-4
+    """
     with con:
-        sql = "INSERT INTO temp VALUES(datetime('now','localtime'),(?), (?),(?),(?))"
-        cur.execute(sql, (t1, t2, t3, t4))
+        sql = "INSERT INTO temp VALUES(datetime('now','localtime'),(?),(?),(?),(?),(?),(?))"
+        cur.execute(sql, (n, p, t1, t2, t3, t4))
 
 
 def sav():
     """4通道温度存入数据库"""
+    fd0 = getBT809data('818152E3')
     fd1 = getBT809data('8181521B')
     fd2 = getBT809data('8282521B')
     fd3 = getBT809data('8383521B')
     fd4 = getBT809data('8484521B')
-    t1, t2, t3, t4 = fd1[0]/10, fd2[0]/10, fd3[0]/10, fd4[0]/10
-    logTemp(t1, t2, t3, t4)
+    n = fd0[4]
+    p = fd1[1]/10
+    t1 = fd1[0]/10
+    t2 = fd2[0]/10
+    t3 = fd3[0]/10
+    t4 = fd4[0]/10
+    logTemp(n, p, t1, t2, t3, t4)
     print("Deposit data...")
     # time.sleep(sampleFreq)
 
@@ -72,11 +79,13 @@ def getData():
         sql = "SELECT * FROM temp ORDER BY timestamp DESC LIMIT 1"
         for row in cur.execute(sql):
             time = str(row[0])
-            channel_1 = row[1]
-            channel_2 = row[2]
-            channel_3 = row[3]
-            channel_4 = row[4]
-        return time, channel_1, channel_2, channel_3, channel_4
+            number = row[1]
+            preset = row[2]
+            channel_1 = row[3]
+            channel_2 = row[4]
+            channel_3 = row[5]
+            channel_4 = row[6]
+        return time, number, preset,channel_1, channel_2, channel_3, channel_4
 
 
 def background_thread():
@@ -84,6 +93,8 @@ def background_thread():
     count = 0
     while True:
         socketio.sleep(10)
+        # if getBT809data('818152E4')[4] !=0:
+            # sav()
         sav()
         r = list(getBT809data('8181521B'))
         r[0],r[1] = r[0]/10,r[1]/10
@@ -95,9 +106,11 @@ def background_thread():
 @app.route("/")
 def index():
     """主页"""
-    time, channel_1, channel_2, channel_3, channel_4 = getData()
+    time, number,preset,channel_1, channel_2, channel_3, channel_4 = getData()
     templateData = {
         'time': time,
+        'number':number,
+        'preset':preset,
         'channel_1': channel_1,
         'channel_2': channel_2,
         'channel_3': channel_3,
@@ -123,7 +136,7 @@ def table():
       data = cur.fetchall ()
    return render_template("table.html",data=data)
 
-   
+
 pin_initial()
 
 
