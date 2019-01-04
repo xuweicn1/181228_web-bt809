@@ -1,13 +1,10 @@
-import psutil
 import time
 import glob
-import struct
-import serial 
-import sqlite3 as lite
 from threading import Lock
-from flask import Flask, render_template, session, request
+from flask import render_template, session, request
 from flask_socketio import SocketIO, emit
 from app import app
+from app.models import Database, BT809, GetSet
 import RPi.GPIO as GPIO
 
 
@@ -16,12 +13,12 @@ socketio = SocketIO(app, async_mode=async_mode)
 thread = None
 thread_lock = Lock()
 
-
-dbname = 'BT809Data.db'
-con = lite.connect(dbname, check_same_thread=False)
-cur = con.cursor()
+bt = BT809()
+db = Database()
+gs = GetSet()
 
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
 pins = {
    24 : {'name' : '信道1', 'state' : GPIO.LOW},
@@ -36,77 +33,25 @@ def pin_initial():
         GPIO.setup(pin, GPIO.OUT)
         GPIO.output(pin, GPIO.LOW)
 
-def getBT809data(x):
-    """从809取数 """
-    with serial.Serial('/dev/ttyUSB0',4800,timeout=1) as ser:
-    # with serial.Serial('com3', 4800, timeout=0.5) as ser:
-        ser.write(bytes.fromhex(x))
-        fd = ser.readline()
-        if len(fd) == 8:
-            r = struct.unpack('hhbbh', fd)
-        return r
-
-
-def logTemp(n, p, t1, t2, t3, t4):
-    """数据入库格式：时间、运行号段、设定值、通道1-4
-    """
-    with con:
-        sql = "INSERT INTO temp VALUES(datetime('now','localtime'),(?),(?),(?),(?),(?),(?))"
-        cur.execute(sql, (n, p, t1, t2, t3, t4))
-
-
-def sav():
-    """4通道温度存入数据库"""
-    fd0 = getBT809data('818152E3')
-    fd1 = getBT809data('8181521B')
-    fd2 = getBT809data('8282521B')
-    fd3 = getBT809data('8383521B')
-    fd4 = getBT809data('8484521B')
-    n = fd0[4]
-    p = fd1[1]/10
-    t1 = fd1[0]/10
-    t2 = fd2[0]/10
-    t3 = fd3[0]/10
-    t4 = fd4[0]/10
-    logTemp(n, p, t1, t2, t3, t4)
-    print("Deposit data...")
-    # time.sleep(sampleFreq)
-
-
-def getData():
-    """读取数据库最新数据"""
-    with con:
-        sql = "SELECT * FROM temp ORDER BY timestamp DESC LIMIT 1"
-        for row in cur.execute(sql):
-            time = str(row[0])
-            number = row[1]
-            preset = row[2]
-            channel_1 = row[3]
-            channel_2 = row[4]
-            channel_3 = row[5]
-            channel_4 = row[6]
-        return time, number, preset,channel_1, channel_2, channel_3, channel_4
-
-
 def background_thread():
     """后台线程产生数据，即刻推送至前端"""
     count = 0
     while True:
-        socketio.sleep(10)
-        # if getBT809data('818152E4')[4] !=0:
-            # sav()
-        sav()
-        r = list(getBT809data('8181521B'))
-        r[0],r[1] = r[0]/10,r[1]/10
+        socketio.sleep(2)
+        r = list(bt.get_data(1, '1B'))
+        r[0], r[1] = r[0]/10, r[1]/10
         t = time.strftime('%H:%M:%S', time.localtime())  # 获取系统时间
         socketio.emit('server_response', {
                       'data': [t] + r, 'count': count}, namespace='/test')
+        if bt.get_data(1,'E4')[4]!=0:
+            gs.temp_save()
+
 
 
 @app.route("/")
 def index():
     """主页"""
-    time, number,preset,channel_1, channel_2, channel_3, channel_4 = getData()
+    time, number,preset,channel_1, channel_2, channel_3, channel_4 = db.get_temp_newdata()
     templateData = {
         'time': time,
         'number':number,
@@ -130,12 +75,27 @@ def test_connect():
 
 @app.route("/table", methods=['POST', 'GET'])
 def table():
-   """获取数据库提交"""
-   with con:
-      cur.execute('''select * from temp''')
-      data = cur.fetchall ()
-   return render_template("table.html",data=data)
+    """获取数据库提交"""
+    data = db.get_temp_all()
+    return render_template("table.html", data=data)
 
+    
+@app.route('/articles')
+def articles():
+    """bt809状态"""
+    data = db.select_all()
+    return render_template('articles.html', data =data)
+
+@app.route('/status')
+def status():
+    """bt809状态"""
+    gs.save_temp_value(1)
+    gs.save_temp_values()
+    gs.save_time_values()
+    gs.save_time_value(202)
+    gs.save_time_value(204)
+    msg = '更新完成'
+    return render_template('articles.html', msg=msg)
 
 pin_initial()
 

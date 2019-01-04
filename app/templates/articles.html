@@ -1,0 +1,35 @@
+{% extends 'layout.html'%}
+
+{%block body%}
+<div class="container">
+
+    <div class="row clearfix">
+        <div class="col-md-6 " style="text-align:left">
+            <h3>仪表状态&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <a href="/status" class="btn btn-info btn-md"">初始化</a>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <a href="/articles" class="btn btn-success btn-md"">刷新</a>
+            </h3>
+        </div>
+    </div>
+   <br>
+   <table class="table table-striped">
+    <tr>
+        <th>ID</th>
+        <th>读写编号</th>
+        <th>参数</th>
+        <th>参数值</th>
+        <th></th>
+        <th></th>
+    </tr>
+    {% for article in data %}
+      <tr>
+        <td>{{article[0]}}</td>
+        <td>{{article[1]}}</td>
+        <td>{{article[2]}}</td>
+        <td>{{article[3]}}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
