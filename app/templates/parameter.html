@@ -1,0 +1,36 @@
+{% extends 'layout.html'%}
+
+{%block body%}
+
+
+<div class="container">
+    <h1>控制面板 </h1>
+
+    <br>
+    <a href="/status" class="btn btn-danger btn-md " role="button">读取所有状态</a>
+    <a href="/parameter" class="btn btn-success btn-md pull-right" role="button">刷新</a>
+
+    <hr>
+
+    <table class="table table-striped">
+        <tr>
+            <th>ID</th>
+            <th>读写编号</th>
+            <th>参数</th>
+            <th>参数值</th>
+            <th></th>
+     
+        </tr>
+        {% for parameter in data %}
+        <tr>
+            <td>{{parameter[0]}}</td>
+            <td>{{parameter[1]}}</td>
+            <td>{{parameter[2]}}</td>
+            <td>{{parameter[3]}}</td>
+            <td><a href="edit/{{parameter[0]}}" class="btn btn-primary btn-sm">设置</a></td>
+            <td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

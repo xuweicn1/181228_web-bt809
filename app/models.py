@@ -5,10 +5,12 @@ import csv
 import time
 import psutil
 
+from wtforms import Form, validators, StringField, SubmitField, PasswordField
+
+
 con = lite.connect('BT809Data.db', check_same_thread=False)
 cur = con.cursor()
 
-sampleFreq = 5
 
 class Database():
 
@@ -63,8 +65,7 @@ class Database():
             cur.execute(sql, [username])  # 插入数据
             data = cur.fetchone()
             return data
-
-    def logTemp(self, n, p, t1, t2, t3, t4):
+    def log_temp(self, n, p, t1, t2, t3, t4):
         """
         n:子机编号
         p：预设值
@@ -114,8 +115,6 @@ class Database():
             cur.execute(sql)
             data = cur.fetchall()
             return data
-            # for row in data:
-            # print(row)
 
     def select_id(self, id):
         """查询第几行"""
@@ -141,120 +140,116 @@ class Database():
 
 class BT809():
 
-    def set_temp_data(self, n, c, v):
+    def set_809_data(self, n, c, v):
         """
         n：子机编号
         c：寄存器读写编号
-        v：设置的温度值
+        v：设置参数值
         返回值：返回809测量值、给定值、写入的参数值
         """
-        pak = sru.pack('h', v*10).hex()
+        pak = sru.pack('h', v).hex()
         con = str(80+n) + str(80+n) + '43' + c + str(pak)
-        with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
+        with serial.Serial('/com3', 4800, timeout=1) as ser:
+            # with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
-            fd = ser.readline()
-            if len(fd) == 8:
-                r = sru.unpack('hhbbh', fd)
-            return r
 
-    def set_time_data(self, n, c, t):
-        """
-        n：子机编号
-        c：寄存器读写编号
-        t：设置的时间值
-        返回值：返回809测量值、给定值、写入的参数值
-        """
-        pak = sru.pack('h', t).hex()
-        con = str(80+n) + str(80+n) + '43' + c + str(pak)
-        with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
-            ser.write(bytes.fromhex(con))
-            fd = ser.readline()
-            if len(fd) == 8:
-                r = sru.unpack('hhbbh', fd)
-            return r
-
-    def get_data(self, n, c):
+    def get_809_data(self, n, c):
         """
         n：子机编号
         c：寄存器读写编号
         返回值：返回809测量值、给定值、参数值
         """
         con = str(80+n) + str(80+n) + '52' + c
-        with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
+        with serial.Serial('/com3', 4800, timeout=1) as ser:
+            # with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
+            time.sleep(0.3)
             fd = ser.readline()
             if len(fd) == 8:
                 r = sru.unpack('hhbbh', fd)
-            return r
+                return r
+
+
+class SetForm(Form):
+    """表单取值"""
+    n = StringField('读写编号')
+    d = StringField('参数说明')
+    v = StringField('设定值')
+
+
+
+class RegisterForm(Form):
+    """用户注册类"""
+    name = StringField('姓名', [validators.Length(min=1, max=50)])
+    username = StringField('用户名', [validators.Length(min=4, max=25)])
+    email = StringField('邮箱', [validators.Length(min=6, max=50)])
+    password = PasswordField('密码', [
+        validators.DataRequired(),
+        validators.EqualTo('confirm', message="密码不对")
+    ])
+    confirm = PasswordField('重复密码')
 
 
 bt = BT809()
 db = Database()
 
+
 class GetSet():
+
+    """视图中的方法"""
 
     def temp_save(self):
         """4通道温度存入数据库"""
-        n = bt.get_data(1, 'E3')[4]
-        p = bt.get_data(1, '1B')[1]/10
-        t1 = bt.get_data(1, '1B')[0]/10
-        t2 = bt.get_data(2, '1B')[0]/10
-        t3 = bt.get_data(3, '1B')[0]/10
-        t4 = bt.get_data(4, '1B')[0]/10
-        db.logTemp(n, p, t1, t2, t3, t4)
-        print("Deposit data...")
-        time.sleep(sampleFreq)
 
-    def save_time_values(self):
-        """存储所有设定时间"""
-        n = db.row_len()[0]
-        for i in range(3, n, 2):
-            find = db.select_id(i)
-            r = bt.get_data(1, find[1])[4]
-            db.update(r, i)
+        try:
+            n = bt.get_809_data(1, 'E3')[4]
+            p = bt.get_809_data(1, '1B')[1]/10
+            t1 = bt.get_809_data(1, '1B')[0]/10
+            t2 = bt.get_809_data(2, '1B')[0]/10
+            t3 = bt.get_809_data(3, '1B')[0]/10
+            t4 = bt.get_809_data(4, '1B')[0]/10
+            db.log_temp(n, p, t1, t2, t3, t4)
 
-    def save_temp_values(self):
-        """存储所有设定温度值"""
-        n = db.row_len()[0]
-        for i in range(2, n, 2):
-            find = db.select_id(i)
-            r = bt.get_data(1, find[1])[4]/10
-            db.update(r, i)
-
-    def save_time_value(self, id):
-        """ 存储指定项时间设定值 """
-        find = db.select_id(id)
-        r = bt.get_data(1, find[1])[4]
-        db.update(r, id)
-
-    def save_temp_value(self, id):
-        """存储指定项温度值"""
-        if id == 1:
-            r = bt.get_data(1, '00')[4]/10
+        except serial.serialutil.SerialException:
+            pass
         else:
+            print("Deposit data...")
+
+    def set_value(self, id):
+        """ 存储指定项设定值 """
+        try:
             find = db.select_id(id)
-            r = bt.get_data(1, find[1])[4]/10
-        db.update(r, id)
+            id = int(id)
+            if id == 1:
+                bt.set_809_data(1, find[1], int(find[3])*10)
+            elif id < 201:
+                if id % 2 == 0:
+                    bt.set_809_data(1, find[1], int(find[3])*10)
+                else:
+                    bt.set_809_data(1, find[1], int(find[3]))
+            else:
+                bt.set_809_data(1, find[1], int(find[3]))
+        except serial.serialutil.SerialException:
+            pass
 
-
-# class Thread():
-
-#     async_mode = None
-#     socketio = SocketIO(app, async_mode=async_mode)
-
-#     def background_thread(self):
-#         """后台线程产生数据，即刻推送至前端"""
-#         count = 0
-#         while True:
-#             socketio.sleep(10)
-#             # if getBT809data('818152E4')[4] !=0:
-#             # sav()
-#             sav()
-#             r = list(getBT809data('8181521B'))
-#             r[0], r[1] = r[0]/10, r[1]/10
-#             t = time.strftime('%H:%M:%S', time.localtime())  # 获取系统时间
-#             socketio.emit('server_response', {
-#                 'data': [t] + r, 'count': count}, namespace='/test')
+    def get_values(self):
+        """读取仪表所有设定状态"""
+        n = db.row_len()[0] + 1
+        try:
+            for id in range(1, n):
+                find = db.select_id(id)
+                if id == 1:
+                    r = bt.get_809_data(1, find[1])[4]/10
+                elif id < n-4:
+                    if id % 2 == 0:
+                        r = bt.get_809_data(1, find[1])[4]/10
+                    else:
+                        r = bt.get_809_data(1, find[1])[4]
+                else:
+                    r = bt.get_809_data(1, find[1])[4]
+                db.update(r, id)
+        except serial.serialutil.SerialException:
+            pass
 
 
 if __name__ == '__main__':
@@ -263,20 +258,4 @@ if __name__ == '__main__':
     db = Database()
     gs = GetSet()
 
-    # db.create_register()
-    # db.csv_save()
-
-    # gs.save_temp_values()
-    # gs.save_time_values()
-    # gs.save_time_value(202)
-    # gs.save_time_value(204)
-    # gs.save_temp_value(1)
-
-    # db.create_temp()
-    # for i in range(10):
-    #     gs.temp_save()
-
-    # db.create_users()
-    # print(db.get_user_info('heee'))
-    data = db.get_user_info('heee')
-    print(data[4])
+    db.create_users()
