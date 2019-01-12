@@ -8,7 +8,7 @@ from passlib.hash import sha256_crypt
 from app import app
 from app.models import Database, BT809, GetSet, SetForm, RegisterForm
 from functools import wraps
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 
 async_mode = None
@@ -21,21 +21,21 @@ db = Database()
 gs = GetSet()
 
 
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
-# pins = {
-#    24 : {'name' : '信道1', 'state' : GPIO.LOW},
-#    25 : {'name' : '信道2', 'state' : GPIO.LOW},
-#    18 : {'name' : '信道3', 'state' : GPIO.LOW},
-#    23 : {'name' : '信道4', 'state' : GPIO.LOW}
-#    }
+pins = {
+   24 : {'name' : '信道1', 'state' : GPIO.LOW},
+   25 : {'name' : '信道2', 'state' : GPIO.LOW},
+   18 : {'name' : '信道3', 'state' : GPIO.LOW},
+   23 : {'name' : '信道4', 'state' : GPIO.LOW}
+   }
 
-# def pin_initial():
-#     '''设置每个引脚为输出,置低电平'''
-#     for pin in pins:
-#         GPIO.setup(pin, GPIO.OUT)
-#         GPIO.output(pin, GPIO.LOW)
+def pin_initial():
+    '''设置每个引脚为输出,置低电平'''
+    for pin in pins:
+        GPIO.setup(pin, GPIO.OUT)
+        GPIO.output(pin, GPIO.LOW)
 
 def is_logged_in(f):
     @wraps(f)
@@ -53,17 +53,17 @@ def background_thread():
     count = 0
     while True:
         try:
-            socketio.sleep(2)
+            socketio.sleep(3)
             r = list(bt.get_809_data(1, '1B'))
             r[0], r[1] = r[0]/10, r[1]/10
             t = time.strftime('%H:%M:%S', time.localtime())
             socketio.emit('server_response', {
                 'data': [t] + r, 'count': count}, namespace='/test')
-            socketio.sleep(10)
+            # socketio.sleep(3)
             if bt.get_809_data(1, 'E4')[4] != 0:
                 gs.temp_save()
         except TypeError:
-            pass
+            print("线路不通，请接线好再试")
         except serial.serialutil.SerialException:
             pass
 
@@ -191,41 +191,41 @@ def logout():
     return redirect(url_for('login'))
 
 
-# pin_initial()
+pin_initial()
 
 
-# @app.route("/vents")
-# @is_logged_in
-# def vents():
-#    '''读引脚状态发送到前端'''
-#    for pin in pins:
-#       pins[pin]['state'] = GPIO.input(pin)
-#    templateData = {
-#       'pins' : pins
-#       }
-#    return render_template('vents.html', **templateData)
+@app.route("/vents")
+@is_logged_in
+def vents():
+   '''读引脚状态发送到前端'''
+   for pin in pins:
+      pins[pin]['state'] = GPIO.input(pin)
+   templateData = {
+      'pins' : pins
+      }
+   return render_template('vents.html', **templateData)
 
 
-# @app.route("/<int:changePin>/<action>", methods=['GET', 'POST'])
-# def vent(changePin, action):
-#     '''执行前端发来请求'''
-#     if action == "on":
-#         '''通电'''
-#         GPIO.output(changePin, GPIO.HIGH)
+@app.route("/<int:changePin>/<action>", methods=['GET', 'POST'])
+def vent(changePin, action):
+    '''执行前端发来请求'''
+    if action == "on":
+        '''通电'''
+        GPIO.output(changePin, GPIO.HIGH)
 
-#     if action == "off":
-#         '''断电'''
-#         GPIO.output(changePin, GPIO.LOW)
+    if action == "off":
+        '''断电'''
+        GPIO.output(changePin, GPIO.LOW)
 
-#     for pin in pins:
-#         '''读引脚状态发送到网页'''
-#         pins[pin]['state'] = GPIO.input(pin)
+    for pin in pins:
+        '''读引脚状态发送到网页'''
+        pins[pin]['state'] = GPIO.input(pin)
 
-#     templateData = {
-#     'pins' : pins
-#     }
+    templateData = {
+    'pins' : pins
+    }
 
-#     return render_template('vents.html', **templateData)
+    return render_template('vents.html', **templateData)
 
 
 if __name__ == '__main__':

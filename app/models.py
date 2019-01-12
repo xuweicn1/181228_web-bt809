@@ -11,6 +11,7 @@ from wtforms import Form, validators, StringField, SubmitField, PasswordField
 con = lite.connect('BT809Data.db', check_same_thread=False)
 cur = con.cursor()
 
+sampleFreq = 5
 
 class Database():
 
@@ -149,8 +150,8 @@ class BT809():
         """
         pak = sru.pack('h', v).hex()
         con = str(80+n) + str(80+n) + '43' + c + str(pak)
-        with serial.Serial('/com3', 4800, timeout=1) as ser:
-            # with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
+        # with serial.Serial('/com3', 4800, timeout=1) as ser:
+        with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
 
     def get_809_data(self, n, c):
@@ -160,8 +161,8 @@ class BT809():
         返回值：返回809测量值、给定值、参数值
         """
         con = str(80+n) + str(80+n) + '52' + c
-        with serial.Serial('/com3', 4800, timeout=1) as ser:
-            # with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
+        # with serial.Serial('/com3', 4800, timeout=1) as ser:
+        with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
             time.sleep(0.3)
             fd = ser.readline()
@@ -212,8 +213,11 @@ class GetSet():
 
         except serial.serialutil.SerialException:
             pass
+        except TypeError: 
+            print("线路不通，请接线好再试")
         else:
             print("Deposit data...")
+            time.sleep(sampleFreq)
 
     def set_value(self, id):
         """ 存储指定项设定值 """
@@ -231,6 +235,8 @@ class GetSet():
                 bt.set_809_data(1, find[1], int(find[3]))
         except serial.serialutil.SerialException:
             pass
+        except TypeError: 
+            print("线路不通，请接线好再试")
 
     def get_values(self):
         """读取仪表所有设定状态"""
@@ -250,7 +256,8 @@ class GetSet():
                 db.update(r, id)
         except serial.serialutil.SerialException:
             pass
-
+        except TypeError: 
+            print("线路不通，请接线好再试")
 
 if __name__ == '__main__':
 

@@ -19,7 +19,11 @@ def get_809_data(n, c):
 
 
 if __name__ == '__main__':
-
-    r= get_809_data(1,'00')
     
-    print('测量温度：{}℃\n设定温度：{}℃\n所读参数：{}'.format(r[0]/10, r[1]/10, r[4]))
+    try:
+        r= get_809_data(1,'00')
+        print('测量温度：{}℃\n设定温度：{}℃\n所读参数：{}'.format(r[0]/10, r[1]/10, r[4]))
+    except TypeError: 
+        print("线路不通，请接线好再试")
+    except serial.serialutil.SerialException:
+        print("端口被占用")
