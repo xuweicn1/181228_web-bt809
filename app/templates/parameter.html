@@ -4,13 +4,14 @@
 
 
 <div class="container">
-    <h1>控制面板 </h1>
+    <h1>仪表控制</h1>
 
     <br>
     <a href="/status" class="btn btn-danger btn-md " role="button">读取所有状态</a>
-    <a href="/parameter" class="btn btn-success btn-md pull-right" role="button">刷新</a>
-
+    &nbsp;&nbsp;&nbsp;&nbsp;<a href="/parameter" class="btn btn-success btn-md " role="button">刷新</a>
+    
     <hr>
+
 
     <table class="table table-striped">
         <tr>
@@ -18,6 +19,7 @@
             <th>读写编号</th>
             <th>参数</th>
             <th>参数值</th>
+            <th></th>
             <th></th>
      
         </tr>
@@ -27,7 +29,8 @@
             <td>{{parameter[1]}}</td>
             <td>{{parameter[2]}}</td>
             <td>{{parameter[3]}}</td>
-            <td><a href="edit/{{parameter[0]}}" class="btn btn-primary btn-sm">设置</a></td>
+            <td><a href="mode/{{parameter[0]}}" class="btn btn-success btn-sm pull-right">读取</a></td>
+            <td><a href="edit/{{parameter[0]}}" class="btn btn-primary btn-sm ">设置</a></td>
             <td>
         </tr>
         {% endfor %}

@@ -254,10 +254,33 @@ class GetSet():
                 else:
                     r = bt.get_809_data(1, find[1])[4]
                 db.update(r, id)
+                print("正在读取第{}个状态".format(id))
         except serial.serialutil.SerialException:
             pass
         except TypeError: 
             print("线路不通，请接线好再试")
+            
+    def get_value(self,id):
+        """读取选定仪表设定状态"""
+        id = int(id)
+        try:
+            find = db.select_id(id)
+            if id == 1:
+                r = bt.get_809_data(1, find[1])[4]/10
+            elif id < 201:
+                if id % 2 == 0:
+                    r = bt.get_809_data(1, find[1])[4]/10
+                else:
+                    r = bt.get_809_data(1, find[1])[4]
+            else:
+                r = bt.get_809_data(1, find[1])[4]
+            db.update(r, id)
+        except serial.serialutil.SerialException:
+            pass
+        except TypeError: 
+            print("线路不通，请接线好再试")
+            
+    
 
 if __name__ == '__main__':
 

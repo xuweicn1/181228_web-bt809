@@ -119,9 +119,17 @@ def parameter():
 def status():
     """bt809初始化"""
     gs.get_values()
-    flash('初始化完成', 'success')
-    return render_template('parameter.html')
+    flash('所有设定状态读取完成', 'success')
+    return redirect(url_for('parameter'))
 
+@app.route('/mode/<string:id>', methods=['GET', 'POST'])
+@is_logged_in
+def mode(id):
+    """查看809某一项目状态值"""
+    gs.get_value(id)
+    flash('读取完成', 'success')
+    return redirect(url_for('parameter'))
+    
 
 @app.route('/edit/<string:id>', methods=['GET', 'POST'])
 @is_logged_in
@@ -136,7 +144,7 @@ def edit(id):
         v = request.form['v']
         db.update(v, id)
         gs.set_value(id)
-        flash('设置完成', 'success')
+        flash('设置成功', 'success')
         return redirect(url_for('parameter'))
     return render_template('edit.html', form=form)
 
