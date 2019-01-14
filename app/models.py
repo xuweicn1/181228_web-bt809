@@ -4,42 +4,22 @@ import struct as sru
 import csv
 import time
 import psutil
+import RPi.GPIO as GPIO
 
-from wtforms import Form, validators, StringField, SubmitField, PasswordField
+
+from wtforms import Form, validators, StringField, SubmitField, PasswordField, IntegerField
 
 
 con = lite.connect('BT809Data.db', check_same_thread=False)
 cur = con.cursor()
 
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
 sampleFreq = 5
 
+
 class Database():
-
-    def create_register(self):
-        """创建寄存器表"""
-        with con:
-            sql = """create table register (
-                            ID  INTEGER PRIMARY KEY AUTOINCREMENT,
-                            Num text,
-                            Meaning text,
-                            Value text)"""
-            cur.execute("DROP TABLE IF EXISTS register")
-            cur.execute(sql)
-
-    def create_temp(self):
-        """创建温度存贮表"""
-        with con:
-            cur = con.cursor()
-            sql = """CREATE TABLE temp(
-                        timestamp DATETIME,
-                        number NUMERIC,
-                        preset NUMERIC,
-                        channel_1 NUMERIC,
-                        channel_2 NUMERIC,
-                        channel_3 NUMERIC,
-                        channel_4 NUMERIC)"""
-            cur.execute("DROP TABLE IF EXISTS temp")
-            cur.execute(sql)
 
     def create_users(self):
         """创建用户表"""
@@ -66,6 +46,22 @@ class Database():
             cur.execute(sql, [username])  # 插入数据
             data = cur.fetchone()
             return data
+
+    def create_temp(self):
+        """创建温度存贮表"""
+        with con:
+            cur = con.cursor()
+            sql = """CREATE TABLE temp(
+                        timestamp DATETIME,
+                        number NUMERIC,
+                        preset NUMERIC,
+                        channel_1 NUMERIC,
+                        channel_2 NUMERIC,
+                        channel_3 NUMERIC,
+                        channel_4 NUMERIC)"""
+            cur.execute("DROP TABLE IF EXISTS temp")
+            cur.execute(sql)
+
     def log_temp(self, n, p, t1, t2, t3, t4):
         """
         n:子机编号
@@ -80,19 +76,12 @@ class Database():
             sql = "INSERT INTO temp VALUES(datetime('now','localtime'),(?),(?),(?),(?),(?),(?))"
             cur.execute(sql, (n, p, t1, t2, t3, t4))
 
-    def get_temp_newdata(self):
+    def get_temp_new(self):
         """读取数据库最新数据"""
         with con:
             sql = "SELECT * FROM temp ORDER BY timestamp DESC LIMIT 1"
-            for row in cur.execute(sql):
-                time = str(row[0])
-                number = row[1]
-                preset = row[2]
-                channel_1 = row[3]
-                channel_2 = row[4]
-                channel_3 = row[5]
-                channel_4 = row[6]
-            return time, number, preset, channel_1, channel_2, channel_3, channel_4
+            cur.execute(sql)
+            return cur.fetchone()
 
     def get_temp_all(self):
         """获取温度表单"""
@@ -100,6 +89,17 @@ class Database():
             sql = """select * from temp """
             cur.execute(sql)
             return cur.fetchall()
+
+    def create_register(self):
+        """创建寄存器表"""
+        with con:
+            sql = """create table register (
+                            ID  INTEGER PRIMARY KEY AUTOINCREMENT,
+                            Num text,
+                            Meaning text,
+                            Size text)"""
+            cur.execute("DROP TABLE IF EXISTS register")
+            cur.execute(sql)
 
     def csv_save(self):
         """打开csv文件，存入sqlite"""
@@ -137,6 +137,60 @@ class Database():
             sql = """  select count(*) from register"""
             cur.execute(sql)
             return cur.fetchone()
+
+    def create_vent(self):
+        """创建风口表"""
+        with con:
+            sql = """create table vent (
+                            ID  INTEGER PRIMARY KEY AUTOINCREMENT,
+                            Temp NUMERIC,
+                            Time NUMERIC,
+                            Size NUMERIC)"""
+            cur.execute("DROP TABLE IF EXISTS vent")
+            cur.execute(sql)
+
+    def vent_csv_save(self):
+        """打开csv文件，存入sqlite"""
+        with con:
+            sql = """ INSERT INTO vent (Temp,Time,Size) VALUES (?,?,?) """
+            csv_data = csv.reader(open('vent.csv'))
+            for line in csv_data:
+                cur.execute(sql, (line[0], line[1], line[2]))
+
+    def vent_update(self, Temp, id):
+        """更新vent表的值"""
+        with con:
+            sql = """update vent set Priority = (?) where ID=(?)"""
+            cur.execute(sql, (Temp, id))
+
+    def row_len(self):
+        """返回vent表单的行数"""
+        with con:
+            sql = """  select count(*) from vent"""
+            cur.execute(sql)
+            return cur.fetchone()
+
+    def vent_select_all(self):
+        """SELECT 操作"""
+        with con:
+            sql = """select * from vent """
+            cur.execute(sql)
+            data = cur.fetchall()
+            return data
+
+    def vent_select_id(self, id):
+        """查询第几行"""
+        with con:
+            sql = """select * from vent where id = (?) """
+            cur.execute(sql, [id])
+            data = cur.fetchone()
+            return data
+
+    def vent_update_values(self, Temp, Time, Size, id):
+        """更新vent表的值"""
+        with con:
+            sql = """update vent set Temp = (?), Time = (?), Size = (?) where ID=(?)"""
+            cur.execute(sql, (Temp, Time, Size, id))
 
 
 class BT809():
@@ -178,6 +232,12 @@ class SetForm(Form):
     v = StringField('设定值')
 
 
+class SetVent(Form):
+
+    temp = IntegerField('温度')
+    time = IntegerField('时间')
+    size = IntegerField('开口')
+
 
 class RegisterForm(Form):
     """用户注册类"""
@@ -189,6 +249,50 @@ class RegisterForm(Form):
         validators.EqualTo('confirm', message="密码不对")
     ])
     confirm = PasswordField('重复密码')
+
+
+class Baffle():
+
+    def __init__(self, step=53, pin0=18, pin1=23):
+        """
+        pin0 = 18 正转到风口最大处
+        pin1 = 23 反转风口到指定位置
+        step = 53  定义从最小开到最大的时间
+        """
+
+        GPIO.setup(pin0, GPIO.OUT, initial=0)
+        GPIO.setup(pin1, GPIO.OUT, initial=0)
+
+        self.pin0 = pin0
+        self.pin1 = pin1
+        self.step = step
+
+    def ratio(self, t, s):
+        """
+        t:开口时间
+        s:开口比例
+        """
+        s = 100 - s
+        if s >= 0:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            GPIO.output(self.pin1, 1)
+            print('阀门缩小中...')
+            time.sleep(self.step*s*0.01)
+            print('阀门已到停在:{:.0%}'.format(1-s*0.01))
+            GPIO.output(self.pin1, 0)
+            print('阀门将在{:.0%}停{}分钟'.format(1-s*0.01, int(t/60)))
+            time.sleep(t)
+            
+
+        else:
+            GPIO.output(self.pin0, 1)
+            time.sleep(step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
 
 
 bt = BT809()
@@ -204,16 +308,16 @@ class GetSet():
 
         try:
             n = bt.get_809_data(1, 'E3')[4]
-            p = bt.get_809_data(1, '1B')[1]/10
-            t1 = bt.get_809_data(1, '1B')[0]/10
-            t2 = bt.get_809_data(2, '1B')[0]/10
-            t3 = bt.get_809_data(3, '1B')[0]/10
-            t4 = bt.get_809_data(4, '1B')[0]/10
+            p = bt.get_809_data(1, '00')[1]/10
+            t1 = bt.get_809_data(1, '00')[0]/10
+            t2 = bt.get_809_data(2, '00')[0]/10
+            t3 = bt.get_809_data(3, '00')[0]/10
+            t4 = bt.get_809_data(4, '00')[0]/10
             db.log_temp(n, p, t1, t2, t3, t4)
 
         except serial.serialutil.SerialException:
             pass
-        except TypeError: 
+        except TypeError:
             print("线路不通，请接线好再试")
         else:
             print("Deposit data...")
@@ -235,7 +339,7 @@ class GetSet():
                 bt.set_809_data(1, find[1], int(find[3]))
         except serial.serialutil.SerialException:
             pass
-        except TypeError: 
+        except TypeError:
             print("线路不通，请接线好再试")
 
     def get_values(self):
@@ -257,10 +361,10 @@ class GetSet():
                 print("正在读取第{}个状态".format(id))
         except serial.serialutil.SerialException:
             pass
-        except TypeError: 
+        except TypeError:
             print("线路不通，请接线好再试")
-            
-    def get_value(self,id):
+
+    def get_value(self, id):
         """读取选定仪表设定状态"""
         id = int(id)
         try:
@@ -277,10 +381,11 @@ class GetSet():
             db.update(r, id)
         except serial.serialutil.SerialException:
             pass
-        except TypeError: 
+        except TypeError:
             print("线路不通，请接线好再试")
-            
-    
+
+
+
 
 if __name__ == '__main__':
 
@@ -288,4 +393,6 @@ if __name__ == '__main__':
     db = Database()
     gs = GetSet()
 
-    db.create_users()
+    # baffle = Baffle(7)
+    # baffle.ratio(2,20)
+

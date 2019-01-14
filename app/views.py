@@ -6,7 +6,7 @@ from flask import render_template, session, request, flash, redirect, logging, u
 from flask_socketio import SocketIO, emit
 from passlib.hash import sha256_crypt
 from app import app
-from app.models import Database, BT809, GetSet, SetForm, RegisterForm
+from app.models import Database, BT809, GetSet, SetForm, RegisterForm, SetVent, Baffle
 from functools import wraps
 import RPi.GPIO as GPIO
 
@@ -21,22 +21,6 @@ db = Database()
 gs = GetSet()
 
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-pins = {
-   24 : {'name' : '信道1', 'state' : GPIO.LOW},
-   25 : {'name' : '信道2', 'state' : GPIO.LOW},
-   18 : {'name' : '信道3', 'state' : GPIO.LOW},
-   23 : {'name' : '信道4', 'state' : GPIO.LOW}
-   }
-
-def pin_initial():
-    '''设置每个引脚为输出,置低电平'''
-    for pin in pins:
-        GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.LOW)
-
 def is_logged_in(f):
     @wraps(f)
     def wrap(*args, **kwargs):
@@ -48,13 +32,14 @@ def is_logged_in(f):
             return redirect(url_for('login'))
     return wrap
 
+
 def background_thread():
     """后台线程产生数据，即刻推送至前端"""
     count = 0
     while True:
         try:
             socketio.sleep(3)
-            r = list(bt.get_809_data(1, '1B'))
+            r = list(bt.get_809_data(1, '00'))
             r[0], r[1] = r[0]/10, r[1]/10
             t = time.strftime('%H:%M:%S', time.localtime())
             socketio.emit('server_response', {
@@ -76,7 +61,7 @@ def index():
 @app.route("/home")
 def home():
     """主页"""
-    time, number, preset, channel_1, channel_2, channel_3, channel_4 = db.get_temp_newdata()
+    time, number, preset, channel_1, channel_2, channel_3, channel_4 = db.get_temp_new()
     templateData = {
         'time': time,
         'number': number,
@@ -122,6 +107,7 @@ def status():
     flash('所有设定状态读取完成', 'success')
     return redirect(url_for('parameter'))
 
+
 @app.route('/mode/<string:id>', methods=['GET', 'POST'])
 @is_logged_in
 def mode(id):
@@ -129,12 +115,12 @@ def mode(id):
     gs.get_value(id)
     flash('读取完成', 'success')
     return redirect(url_for('parameter'))
-    
+
 
 @app.route('/edit/<string:id>', methods=['GET', 'POST'])
 @is_logged_in
 def edit(id):
-    """设置参数值"""
+    """设置仪表参数值"""
     data = db.select_id(id)
     form = SetForm(request.form)
     form.n.data = data[1]
@@ -147,6 +133,52 @@ def edit(id):
         flash('设置成功', 'success')
         return redirect(url_for('parameter'))
     return render_template('edit.html', form=form)
+
+
+@app.route('/vent')
+@is_logged_in
+def vent():
+    """bt809参数设定"""
+    data = db.vent_select_all()
+    return render_template('vent.html', data=data)
+
+
+@app.route('/editvent/<string:id>', methods=['GET', 'POST'])
+@is_logged_in
+def editvent(id):
+    """设置风口参数值"""
+    data = db.vent_select_id(id)
+    form = SetVent(request.form)
+    form.temp.data = data[1]
+    form.time.data = data[2]
+    form.size.data = data[3]
+    if request.method == 'POST' and form.validate():
+        temp = request.form['temp']
+        time = request.form['time']
+        size = request.form['size']
+        db.vent_update_values(temp, time, size, id)
+        flash('设置成功', 'success')
+        return redirect(url_for('vent'))
+    return render_template('editvent.html', form=form)
+
+
+@app.route('/ventstart')
+@is_logged_in
+def ventstart():
+    """风口自动开启"""
+    id = 1
+    baffle = Baffle(53)
+    while True:
+        find = db.vent_select_id(id)
+        print("正在执行第{}段风口设定".format(find[0]))
+        baffle.ratio(find[2]*60, find[3])
+        t0 = time.mktime(time.strptime(
+            db.get_temp_new()[0], "%Y-%m-%d %H:%M:%S"))
+        t1 = time.time() - t0
+        if t1 > 60 or id == 18:
+            break
+        id += 1
+    return render_template('vent.html')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -188,52 +220,12 @@ def login():
     return render_template('login.html')
 
 
-
-
-
 @app.route('/logout')
 def logout():
     session.clear()
     """退出"""
     flash('你已经退出', 'success')
     return redirect(url_for('login'))
-
-
-pin_initial()
-
-
-@app.route("/vents")
-@is_logged_in
-def vents():
-   '''读引脚状态发送到前端'''
-   for pin in pins:
-      pins[pin]['state'] = GPIO.input(pin)
-   templateData = {
-      'pins' : pins
-      }
-   return render_template('vents.html', **templateData)
-
-
-@app.route("/<int:changePin>/<action>", methods=['GET', 'POST'])
-def vent(changePin, action):
-    '''执行前端发来请求'''
-    if action == "on":
-        '''通电'''
-        GPIO.output(changePin, GPIO.HIGH)
-
-    if action == "off":
-        '''断电'''
-        GPIO.output(changePin, GPIO.LOW)
-
-    for pin in pins:
-        '''读引脚状态发送到网页'''
-        pins[pin]['state'] = GPIO.input(pin)
-
-    templateData = {
-    'pins' : pins
-    }
-
-    return render_template('vents.html', **templateData)
 
 
 if __name__ == '__main__':
