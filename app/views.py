@@ -1,7 +1,8 @@
 import time
 import glob
 import serial
-from threading import Lock
+import threading
+
 from flask import render_template, session, request, flash, redirect, logging, url_for
 from flask_socketio import SocketIO, emit
 from passlib.hash import sha256_crypt
@@ -14,7 +15,9 @@ import RPi.GPIO as GPIO
 async_mode = None
 socketio = SocketIO(app, async_mode=async_mode)
 thread = None
-thread_lock = Lock()
+
+thread_lock = threading.Lock()
+
 
 bt = BT809()
 db = Database()
@@ -33,6 +36,19 @@ def is_logged_in(f):
     return wrap
 
 
+def ventstart():
+    """风口自动开启"""
+    id = 1
+    baffle = Baffle(53,18,23)
+    while True:
+        find = db.vent_select_id(id)
+        print("正在执行第{}段风口设定".format(find[0]))
+        baffle.ratio(find[2]*60, find[3])
+        if id == 18:
+            break
+        id += 1
+
+
 def background_thread():
     """后台线程产生数据，即刻推送至前端"""
     count = 0
@@ -44,9 +60,9 @@ def background_thread():
             t = time.strftime('%H:%M:%S', time.localtime())
             socketio.emit('server_response', {
                 'data': [t] + r, 'count': count}, namespace='/test')
-            # socketio.sleep(3)
             if bt.get_809_data(1, 'E4')[4] != 0:
                 gs.temp_save()
+                threading.Thread(target=ventstart()).start()
         except TypeError:
             print("线路不通，请接线好再试")
         except serial.serialutil.SerialException:
@@ -160,25 +176,6 @@ def editvent(id):
         flash('设置成功', 'success')
         return redirect(url_for('vent'))
     return render_template('editvent.html', form=form)
-
-
-@app.route('/ventstart')
-@is_logged_in
-def ventstart():
-    """风口自动开启"""
-    id = 1
-    baffle = Baffle(53)
-    while True:
-        find = db.vent_select_id(id)
-        print("正在执行第{}段风口设定".format(find[0]))
-        baffle.ratio(find[2]*60, find[3])
-        t0 = time.mktime(time.strptime(
-            db.get_temp_new()[0], "%Y-%m-%d %H:%M:%S"))
-        t1 = time.time() - t0
-        if t1 > 60 or id == 18:
-            break
-        id += 1
-    return render_template('vent.html')
 
 
 @app.route('/register', methods=['GET', 'POST'])

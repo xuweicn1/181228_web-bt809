@@ -320,7 +320,7 @@ class GetSet():
         except TypeError:
             print("线路不通，请接线好再试")
         else:
-            print("Deposit data...")
+            print("存储数据...")
             time.sleep(sampleFreq)
 
     def set_value(self, id):
