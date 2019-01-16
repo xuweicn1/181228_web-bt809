@@ -42,7 +42,7 @@ def ventstart():
     baffle = Baffle(53,18,23)
     while True:
         find = db.vent_select_id(id)
-        print("正在执行第{}段风口设定".format(find[0]))
+        print("执行风口:第{}段,时间设定:{}分".format(find[0],find[2]))
         baffle.ratio(find[2]*60, find[3])
         if id == 18:
             break
@@ -62,7 +62,7 @@ def background_thread():
                 'data': [t] + r, 'count': count}, namespace='/test')
             if bt.get_809_data(1, 'E4')[4] != 0:
                 gs.temp_save()
-                threading.Thread(target=ventstart()).start()
+                # socketio.start_background_task(target=ventstart)
         except TypeError:
             print("线路不通，请接线好再试")
         except serial.serialutil.SerialException:
@@ -96,7 +96,13 @@ def test_connect():
     global thread
     with thread_lock:
         if thread is None:
-            thread = socketio.start_background_task(target=background_thread)
+            thread = socketio.start_background_task(target=background_thread)            
+            t0 = time.mktime(time.strptime(
+                db.get_temp_new()[0], "%Y-%m-%d %H:%M:%S"))
+            t1 = time.time() - t0
+            if t1-t0 < 100:
+                socketio.start_background_task(target=ventstart)
+       
 
 
 @app.route("/table", methods=['POST', 'GET'])
