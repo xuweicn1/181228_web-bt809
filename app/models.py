@@ -5,8 +5,6 @@ import csv
 import time
 import psutil
 import RPi.GPIO as GPIO
-
-
 from wtforms import Form, validators, StringField, SubmitField, PasswordField, IntegerField
 
 
@@ -97,11 +95,11 @@ class Database():
                             ID  INTEGER PRIMARY KEY AUTOINCREMENT,
                             Num text,
                             Meaning text,
-                            Size text)"""
+                            Num_value text)"""
             cur.execute("DROP TABLE IF EXISTS register")
             cur.execute(sql)
 
-    def csv_save(self):
+    def register_csv_save(self):
         """打开csv文件，存入sqlite"""
         with con:
             sql = """ INSERT INTO register (Num,Meaning) VALUES (?,?) """
@@ -109,7 +107,7 @@ class Database():
             for line in csv_data:
                 cur.execute(sql, (line[0], line[1]))
 
-    def select_all(self):
+    def register_select_all(self):
         """SELECT 操作"""
         with con:
             sql = """select * from register """
@@ -117,7 +115,7 @@ class Database():
             data = cur.fetchall()
             return data
 
-    def select_id(self, id):
+    def register_select_id(self, id):
         """查询第几行"""
         with con:
             sql = """select * from register where id = (?) """
@@ -125,13 +123,13 @@ class Database():
             data = cur.fetchone()
             return data
 
-    def update(self, value, id):
+    def register_update(self, value, id):
         """更新register表的值"""
         with con:
-            sql = """update register set Value = (?) where ID=(?)"""
+            sql = """update register set Num_value = (?) where ID=(?)"""
             cur.execute(sql, (value, id))
 
-    def row_len(self):
+    def register_row_len(self):
         """返回表单的行数"""
         with con:
             sql = """  select count(*) from register"""
@@ -163,7 +161,7 @@ class Database():
             sql = """update vent set Priority = (?) where ID=(?)"""
             cur.execute(sql, (Temp, id))
 
-    def row_len(self):
+    def vent_row_len(self):
         """返回vent表单的行数"""
         with con:
             sql = """  select count(*) from vent"""
@@ -229,7 +227,7 @@ class SetForm(Form):
     """表单取值"""
     n = StringField('读写编号')
     d = StringField('参数说明')
-    v = StringField('设定值')
+    v = IntegerField('设定值')
 
 
 class SetVent(Form):
@@ -286,34 +284,33 @@ class Baffle():
             GPIO.output(self.pin1, 0)
             print('阀门将在{:.0%}停{}分钟'.format(1-s*0.01, int(t/60)))
             time.sleep(t)
-            
 
         else:
             GPIO.output(self.pin0, 1)
-            time.sleep(step)
+            time.sleep(self.step)
             GPIO.output(self.pin0, 0)
             print('阀门已到最大处...')
-
-
-bt = BT809()
-db = Database()
 
 
 class GetSet():
 
     """视图中的方法"""
 
+    def __init__(self, bt=BT809(), db=Database()):
+        self.bt = bt
+        self.db = db
+
     def temp_save(self):
         """4通道温度存入数据库"""
 
         try:
-            n = bt.get_809_data(1, 'E3')[4]
-            p = bt.get_809_data(1, '00')[1]/10
-            t1 = bt.get_809_data(1, '00')[0]/10
-            t2 = bt.get_809_data(2, '00')[0]/10
-            t3 = bt.get_809_data(3, '00')[0]/10
-            t4 = bt.get_809_data(4, '00')[0]/10
-            db.log_temp(n, p, t1, t2, t3, t4)
+            num = self.bt.get_809_data(1, 'E3')[4]
+            p = self.bt.get_809_data(1, '00')[1]/10
+            t1 = self.bt.get_809_data(1, '00')[0]/10
+            t2 = self.bt.get_809_data(2, '00')[0]/10
+            t3 = self.bt.get_809_data(3, '00')[0]/10
+            t4 = self.bt.get_809_data(4, '00')[0]/10
+            self.db.log_temp(num, p, t1, t2, t3, t4)
 
         except serial.serialutil.SerialException:
             pass
@@ -323,76 +320,75 @@ class GetSet():
             print("存储数据...")
             time.sleep(sampleFreq)
 
-    def set_value(self, id):
+    def set_value(self, num):
         """ 存储指定项设定值 """
         try:
-            find = db.select_id(id)
-            id = int(id)
-            if id == 1:
-                bt.set_809_data(1, find[1], int(find[3])*10)
-            elif id < 201:
-                if id % 2 == 0:
-                    bt.set_809_data(1, find[1], int(find[3])*10)
+            fd = self.db.register_select_id(num)
+            if num == 1:
+                self.bt.set_809_data(1, fd[1], int(fd[3])*10)
+            elif 1 < num < 201:
+                if num % 2 == 0:
+                    self.bt.set_809_data(1, fd[1], int(fd[3])*10)
                 else:
-                    bt.set_809_data(1, find[1], int(find[3]))
+                    self.bt.set_809_data(1, fd[1], int(fd[3]))
             else:
-                bt.set_809_data(1, find[1], int(find[3]))
+                self.bt.set_809_data(1, fd[1], int(fd[3]))
+            print('ID：{}\t设置成功'.format(num))
         except serial.serialutil.SerialException:
             pass
         except TypeError:
-            print("线路不通，请接线好再试")
+            print("数据类型出错，设置失败")
 
     def get_values(self):
         """读取仪表所有设定状态"""
-        n = db.row_len()[0] + 1
+        row = self.db.register_row_len()[0] + 1
         try:
-            for id in range(1, n):
-                find = db.select_id(id)
-                if id == 1:
-                    r = bt.get_809_data(1, find[1])[4]/10
-                elif id < n-4:
-                    if id % 2 == 0:
-                        r = bt.get_809_data(1, find[1])[4]/10
+            for num in range(1, row):
+                fd = self.db.register_select_id(num)
+                if num == 1:
+                    rtn = self.bt.get_809_data(1, fd[1])[4]/10
+                elif 1 < num < row - 4:
+                    if num % 2 == 0:
+                        rtn = self.bt.get_809_data(1, fd[1])[4]/10
                     else:
-                        r = bt.get_809_data(1, find[1])[4]
+                        rtn = self.bt.get_809_data(1, fd[1])[4]
                 else:
-                    r = bt.get_809_data(1, find[1])[4]
-                db.update(r, id)
-                print("正在读取第{}个状态".format(id))
+                    rtn = self.bt.get_809_data(1, fd[1])[4]
+                self.db.register_update(int(rtn), num)
+                print("正读取第{}个仪表参数".format(num))
         except serial.serialutil.SerialException:
             pass
         except TypeError:
-            print("线路不通，请接线好再试")
+            print("数据类型错误")
 
-    def get_value(self, id):
+    def get_value(self, num):
         """读取选定仪表设定状态"""
-        id = int(id)
+        row = self.db.register_row_len()[0] + 1
         try:
-            find = db.select_id(id)
-            if id == 1:
-                r = bt.get_809_data(1, find[1])[4]/10
-            elif id < 201:
-                if id % 2 == 0:
-                    r = bt.get_809_data(1, find[1])[4]/10
+            fd = self.db.register_select_id(num)
+            if num == 1:
+                rtn = self.bt.get_809_data(1, fd[1])[4]/10
+            elif 1 < num < 201:
+                if num % 2 == 0:
+                    rtn = self.bt.get_809_data(1, fd[1])[4]/10
                 else:
-                    r = bt.get_809_data(1, find[1])[4]
+                    rtn = self.bt.get_809_data(1, fd[1])[4]
             else:
-                r = bt.get_809_data(1, find[1])[4]
-            db.update(r, id)
+                rtn = self.bt.get_809_data(1, fd[1])[4]
+            self.db.register_update(int(rtn), num)
+            print("ID：{}\t读取完成".format(num))
         except serial.serialutil.SerialException:
             pass
         except TypeError:
-            print("线路不通，请接线好再试")
-
-
+            print("读取选定仪表设定状态数据类型错误")
 
 
 if __name__ == '__main__':
 
-    bt = BT809()
-    db = Database()
-    gs = GetSet()
+    # bt = BT809()
+    # db = Database()
+    # gs = GetSet(bt, db)
+    gs = GetSet(BT809(),Database())
 
-    # baffle = Baffle(7)
-    # baffle.ratio(2,20)
-
+    # db.create_users()
+    gs.get_values()

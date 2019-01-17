@@ -21,7 +21,7 @@ thread_lock = threading.Lock()
 
 bt = BT809()
 db = Database()
-gs = GetSet()
+gs = GetSet(bt,db)
 
 
 def is_logged_in(f):
@@ -64,7 +64,7 @@ def background_thread():
                 gs.temp_save()
                 # socketio.start_background_task(target=ventstart)
         except TypeError:
-            print("线路不通，请接线好再试")
+            print("数据类型错误")
         except serial.serialutil.SerialException:
             pass
 
@@ -100,11 +100,11 @@ def test_connect():
             t0 = time.mktime(time.strptime(
                 db.get_temp_new()[0], "%Y-%m-%d %H:%M:%S"))
             t1 = time.time() - t0
-            if t1-t0 < 100:
+            if t1-t0 < 60:
                 socketio.start_background_task(target=ventstart)
        
 
-
+    
 @app.route("/table", methods=['POST', 'GET'])
 @is_logged_in
 def table():
@@ -117,7 +117,7 @@ def table():
 @is_logged_in
 def parameter():
     """bt809参数设定"""
-    data = db.select_all()
+    data = db.register_select_all()
     return render_template('parameter.html', data=data)
 
 
@@ -130,7 +130,7 @@ def status():
     return redirect(url_for('parameter'))
 
 
-@app.route('/mode/<string:id>', methods=['GET', 'POST'])
+@app.route('/mode/<int:id>', methods=['GET', 'POST'])
 @is_logged_in
 def mode(id):
     """查看809某一项目状态值"""
@@ -139,18 +139,18 @@ def mode(id):
     return redirect(url_for('parameter'))
 
 
-@app.route('/edit/<string:id>', methods=['GET', 'POST'])
+@app.route('/edit/<int:id>', methods=['GET', 'POST'])
 @is_logged_in
 def edit(id):
     """设置仪表参数值"""
-    data = db.select_id(id)
+    data = db.register_select_id(id)
     form = SetForm(request.form)
     form.n.data = data[1]
     form.d.data = data[2]
     form.v.data = data[3]
     if request.method == 'POST' and form.validate():
         v = request.form['v']
-        db.update(v, id)
+        db.register_update(v, id)
         gs.set_value(id)
         flash('设置成功', 'success')
         return redirect(url_for('parameter'))
