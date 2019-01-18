@@ -267,6 +267,7 @@ class Baffle():
 
     def ratio(self, t, s):
         """
+        时间控制继电器
         t:开口时间
         s:开口比例
         """
@@ -290,6 +291,74 @@ class Baffle():
             time.sleep(self.step)
             GPIO.output(self.pin0, 0)
             print('阀门已到最大处...')
+            
+    def temp_ratio(self, temp):
+        """温度控制继电器
+        temp:温度
+        """
+        if temp <= 70:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            GPIO.output(self.pin1, 1)
+            print('阀门缩小中...')
+            time.sleep(self.step*0.8)
+            GPIO.output(self.pin1, 0)
+            print('阀门已到停在20%')
+
+        elif 70 < temp <= 80:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            GPIO.output(self.pin1, 1)
+            print('阀门缩小中...')
+            time.sleep(self.step*0.7)
+            GPIO.output(self.pin1, 0)
+            print('阀门已到停在30%')
+
+        elif 80 < temp <= 90:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            GPIO.output(self.pin1, 1)
+            print('阀门缩小中...')
+            time.sleep(self.step*0.4)
+            GPIO.output(self.pin1, 0)
+            print('阀门已到停在60%')
+
+        elif 90 < temp <= 130:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            print('阀门已到停在100%')
+
+        elif 130 < temp <= 173:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            GPIO.output(self.pin1, 1)
+            print('阀门缩小中...')
+            time.sleep(self.step*0.2)
+            GPIO.output(self.pin1, 0)
+            print('阀门已到停在80%')
+        else:
+            GPIO.output(self.pin0, 1)
+            print('阀门扩大中...')
+            time.sleep(self.step)
+            GPIO.output(self.pin0, 0)
+            print('阀门已到最大处...')
+            print('阀门已到停在100%')
+
 
 
 class GetSet():

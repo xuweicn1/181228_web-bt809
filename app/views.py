@@ -36,22 +36,25 @@ def is_logged_in(f):
     return wrap
 
 
-def ventstart():
-    """风口自动开启"""
-    id = 1
-    baffle = Baffle(53,18,23)
-    while True:
-        find = db.vent_select_id(id)
-        print("执行风口:第{}段,时间设定:{}分".format(find[0],find[2]))
-        baffle.ratio(find[2]*60, find[3])
-        if id == 18:
-            break
-        id += 1
+# def ventstart():
+    # """风口自动开启"""
+    # id = 1
+    # baffle = Baffle(53,18,23)
+    # while True:
+        # find = db.vent_select_id(id)
+        # print("执行风口:第{}段,时间设定:{}分".format(find[0],find[2]))
+        # baffle.ratio(find[2]*60, find[3])
+        # if id == 18:
+            # break
+        # id += 1
+
 
 
 def background_thread():
     """后台线程产生数据，即刻推送至前端"""
     count = 0
+    segment_num = 0
+    baffle = Baffle(53,18,23)
     while True:
         try:
             socketio.sleep(3)
@@ -62,7 +65,11 @@ def background_thread():
                 'data': [t] + r, 'count': count}, namespace='/test')
             if bt.get_809_data(1, 'E4')[4] != 0:
                 gs.temp_save()
-                # socketio.start_background_task(target=ventstart)
+            if bt.get_809_data(1, 'E3')[4] - segment_num > 0:
+                segment_num = bt.get_809_data(1, 'E3')[4]
+                print("执行第{}段程序,调整风口".format(segment_num))
+                baffle.temp_ratio(r[0])
+                
         except TypeError:
             print("数据类型错误")
         except serial.serialutil.SerialException:
@@ -97,11 +104,7 @@ def test_connect():
     with thread_lock:
         if thread is None:
             thread = socketio.start_background_task(target=background_thread)            
-            t0 = time.mktime(time.strptime(
-                db.get_temp_new()[0], "%Y-%m-%d %H:%M:%S"))
-            t1 = time.time() - t0
-            if t1-t0 < 60:
-                socketio.start_background_task(target=ventstart)
+
        
 
     
@@ -157,31 +160,31 @@ def edit(id):
     return render_template('edit.html', form=form)
 
 
-@app.route('/vent')
-@is_logged_in
-def vent():
-    """bt809参数设定"""
-    data = db.vent_select_all()
-    return render_template('vent.html', data=data)
+# @app.route('/vent')
+# @is_logged_in
+# def vent():
+    # """bt809参数设定"""
+    # data = db.vent_select_all()
+    # return render_template('vent.html', data=data)
 
 
-@app.route('/editvent/<string:id>', methods=['GET', 'POST'])
-@is_logged_in
-def editvent(id):
-    """设置风口参数值"""
-    data = db.vent_select_id(id)
-    form = SetVent(request.form)
-    form.temp.data = data[1]
-    form.time.data = data[2]
-    form.size.data = data[3]
-    if request.method == 'POST' and form.validate():
-        temp = request.form['temp']
-        time = request.form['time']
-        size = request.form['size']
-        db.vent_update_values(temp, time, size, id)
-        flash('设置成功', 'success')
-        return redirect(url_for('vent'))
-    return render_template('editvent.html', form=form)
+# @app.route('/editvent/<string:id>', methods=['GET', 'POST'])
+# @is_logged_in
+# def editvent(id):
+    # """设置风口参数值"""
+    # data = db.vent_select_id(id)
+    # form = SetVent(request.form)
+    # form.temp.data = data[1]
+    # form.time.data = data[2]
+    # form.size.data = data[3]
+    # if request.method == 'POST' and form.validate():
+        # temp = request.form['temp']
+        # time = request.form['time']
+        # size = request.form['size']
+        # db.vent_update_values(temp, time, size, id)
+        # flash('设置成功', 'success')
+        # return redirect(url_for('vent'))
+    # return render_template('editvent.html', form=form)
 
 
 @app.route('/register', methods=['GET', 'POST'])
