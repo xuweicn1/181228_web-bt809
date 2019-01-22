@@ -202,7 +202,6 @@ class BT809():
         """
         pak = sru.pack('h', v).hex()
         con = str(80+n) + str(80+n) + '43' + c + str(pak)
-        # with serial.Serial('/com3', 4800, timeout=1) as ser:
         with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
 
@@ -213,7 +212,6 @@ class BT809():
         返回值：返回809测量值、给定值、参数值
         """
         con = str(80+n) + str(80+n) + '52' + c
-        # with serial.Serial('/com3', 4800, timeout=1) as ser:
         with serial.Serial('/dev/ttyUSB0', 4800, timeout=1) as ser:
             ser.write(bytes.fromhex(con))
             time.sleep(0.3)
@@ -454,10 +452,7 @@ class GetSet():
 
 if __name__ == '__main__':
 
-    # bt = BT809()
-    # db = Database()
-    # gs = GetSet(bt, db)
+
     gs = GetSet(BT809(),Database())
 
-    # db.create_users()
     gs.get_values()
